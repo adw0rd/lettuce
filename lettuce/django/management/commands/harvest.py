@@ -36,10 +36,7 @@ class Command(BaseCommand):
     args = '[PATH to feature file or folder]'
     requires_model_validation = False
 
-    option_list = BaseCommand.option_list[1:] + (
-        make_option('-v', '--verbosity', action='store', dest='verbosity', default='4',
-            type='choice', choices=map(str, range(5)),
-            help='Verbosity level; 0=no output, 1=only dots, 2=only scenario names, 3=colorless output, 4=normal output (colorful)'),
+    option_list = BaseCommand.option_list + (
 
         make_option('-a', '--apps', action='store', dest='apps', default='',
             help='Run ONLY the django apps that are listed here. Comma separated'),
@@ -120,6 +117,17 @@ class Command(BaseCommand):
 
     )
 
+    def create_parser(self, prog_name, subcommand):
+        # HACK FOR: optparse.OptionConflictError: option -v/--verbosity: conflicting option string(s): -v, --verbosit
+        parser = super(Command, self).create_parser(prog_name, subcommand)
+        parser.remove_option('-v')
+        parser.add_option(
+            '-v', '--verbosity', action='store', dest='verbosity', default='3',
+            type='choice', choices=map(str, range(5)),
+            help='Verbosity level; 0=no output, 1=only dots, 2=only scenario names, 3=normal output (colorful), 4=colorless output'
+        )
+        return parser
+
     def stopserver(self, failed=False):
         raise SystemExit(int(failed))
 
@@ -138,6 +146,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         setup_test_environment()
+
+        verbosity = int(options.get('verbosity', 3))
+        if options.get('no_color', False) and verbosity is 3:
+            verbosity = 4
         settings.DEBUG = options.get('debug', False)
         settings.LETTUCE_BROWSER = options.get('browser', 'firefox')
         settings.LETTUCE_FAILED_STEP_SLEEP = options.get('failed_step_sleep')
@@ -145,7 +157,6 @@ class Command(BaseCommand):
         settings.DISABLE_JSCOMPILE = options.get('disable_jscompile')
         settings.LETTUCE_BY_STEP = options.get('by_step', False)
 
-        verbosity = int(options.get('verbosity', 4))
         apps_to_run = tuple(options.get('apps', '').split(","))
         apps_to_avoid = tuple(options.get('avoid_apps', '').split(","))
         run_server = not options.get('no_server', False)
